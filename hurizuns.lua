@@ -85,29 +85,43 @@ TeleportTab:CreateButton({
    end,
 })
 
--- Developer Tools Tab
+-- Developer Tools Tab (Upgraded Bypass)
 local DevTab = Window:CreateTab("Dev / QA", 4483345998)
 
 DevTab:CreateButton({
    Name = "Force Open QA Panel",
    Callback = function()
-      local QAGui = LocalPlayer.PlayerGui:FindFirstChild("QA")
-      if QAGui then
+      -- 1. Try a deep search in PlayerGui
+      local QAGui = LocalPlayer.PlayerGui:FindFirstChild("QA", true) 
+      
+      -- 2. If not found, check StarterGui and force clone it
+      if not QAGui then
+          local StarterQA = game:GetService("StarterGui"):FindFirstChild("QA", true)
+          if StarterQA then
+              QAGui = StarterQA:Clone()
+              QAGui.Parent = LocalPlayer.PlayerGui
+              Rayfield:Notify({Title = "Cloned", Content = "QA Panel was missing, cloned from StarterGui.", Duration = 3})
+          end
+      end
+
+      -- 3. Enable the UI if we successfully found/cloned it
+      if QAGui and QAGui:IsA("ScreenGui") then
          QAGui.Enabled = true
-         if QAGui:FindFirstChild("Background") then
-             QAGui.Background.Visible = true
-         end
+         -- Deep search for background elements that might be hidden
+         local bg = QAGui:FindFirstChild("Background", true) or QAGui:FindFirstChild("BG", true)
+         if bg then bg.Visible = true end
+         
          Rayfield:Notify({
             Title = "Bypass Success",
-            Content = "QA Panel enabled.",
+            Content = "QA Panel forced open.",
             Duration = 5,
             Image = 4483345998,
          })
       else
          Rayfield:Notify({
-            Title = "Failed",
-            Content = "QA Panel GUI not found in PlayerGui.",
-            Duration = 3,
+            Title = "Critical Failure",
+            Content = "QA Panel doesn't exist in the client data at all.",
+            Duration = 4,
          })
       end
    end,
