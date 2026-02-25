@@ -1,91 +1,153 @@
--- Garden Horizons: Absolute Local
--- Zero external dependencies. 100% execution success rate.
+-- Garden Horizons: Ascended (Final Local Build)
+-- Uses gethui() mounting to bypass Delta Android silent crashes.
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local CoreTarget = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
 
--- 1. Wipe old instances
-if CoreTarget:FindFirstChild("AbsoluteHub") then
-    CoreTarget.AbsoluteHub:Destroy()
+-- 1. Safely Find UI Parent (The Diagnostic Fix)
+local TargetParent = nil
+if type(gethui) == "function" then
+    TargetParent = gethui()
+else
+    pcall(function() TargetParent = game:GetService("CoreGui") end)
+    if not TargetParent then
+        TargetParent = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+    end
 end
 
--- 2. Create the GUI Framework
+if not TargetParent then return end
+
+-- 2. Wipe old instances
+if TargetParent:FindFirstChild("AbsoluteHub") then
+    TargetParent.AbsoluteHub:Destroy()
+end
+
+-- 3. Create the GUI Framework
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AbsoluteHub"
-ScreenGui.Parent = CoreTarget
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = TargetParent
 
 -- Floating Mobile Toggle Button
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-ToggleBtn.Position = UDim2.new(0.5, -22, 0, 10)
+ToggleBtn.Position = UDim2.new(0.5, -22, 0, 15)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 ToggleBtn.Text = "🌱"
 ToggleBtn.TextSize = 25
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(1, 0)
-ToggleCorner.Parent = ToggleBtn
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
 
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Parent = ToggleBtn
 UIStroke.Color = Color3.fromRGB(100, 255, 100)
 UIStroke.Thickness = 2
 
+-- Make Toggle Draggable
+local draggingToggle, dragInputToggle, dragStartToggle, startPosToggle
+ToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingToggle = true
+        dragStartToggle = input.Position
+        startPosToggle = ToggleBtn.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then draggingToggle = false end
+        end)
+    end
+end)
+ToggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInputToggle = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInputToggle and draggingToggle then
+        local delta = input.Position - dragStartToggle
+        ToggleBtn.Position = UDim2.new(startPosToggle.X.Scale, startPosToggle.X.Offset + delta.X, startPosToggle.Y.Scale, startPosToggle.Y.Offset + delta.Y)
+    end
+end)
+
 -- Main Mod Panel (Hidden initially)
 local MainPanel = Instance.new("Frame")
 MainPanel.Parent = ScreenGui
-MainPanel.Size = UDim2.new(0, 250, 0, 300)
-MainPanel.Position = UDim2.new(0.5, -125, 0.5, -150)
+MainPanel.Size = UDim2.new(0, 260, 0, 320)
+MainPanel.Position = UDim2.new(0.5, -130, 0.5, -160)
 MainPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainPanel.Visible = false
 MainPanel.Active = true
-MainPanel.Draggable = true -- Native Roblox dragging
-local PanelCorner = Instance.new("UICorner")
-PanelCorner.CornerRadius = UDim.new(0, 10)
-PanelCorner.Parent = MainPanel
+Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 8)
 
-local Title = Instance.new("TextLabel")
-Title.Parent = MainPanel
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "  GH: ABSOLUTE LOCAL"
+-- Make Panel Draggable
+local TopBar = Instance.new("Frame", MainPanel)
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel", TopBar)
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.Text = "GH: ASCENDED"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Parent = MainPanel
-Scroll.Size = UDim2.new(1, -10, 1, -40)
-Scroll.Position = UDim2.new(0, 5, 0, 35)
-Scroll.BackgroundTransparency = 1
-Scroll.ScrollBarThickness = 4
-Scroll.CanvasSize = UDim2.new(0, 0, 1.5, 0)
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Parent = Scroll
-ListLayout.Padding = UDim.new(0, 5)
-
--- Toggle Logic
-ToggleBtn.MouseButton1Click:Connect(function()
-    MainPanel.Visible = not MainPanel.Visible
+local dragging, dragInput, dragStart, startPos
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainPanel.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+TopBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainPanel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
 end)
 
--- 3. UI Component Generators
+-- Toggle Menu Logic
+ToggleBtn.MouseButton1Click:Connect(function()
+    if not draggingToggle then -- Only open if we aren't dragging it
+        MainPanel.Visible = not MainPanel.Visible
+    end
+end)
+
+local Scroll = Instance.new("ScrollingFrame", MainPanel)
+Scroll.Size = UDim2.new(1, -10, 1, -45)
+Scroll.Position = UDim2.new(0, 5, 0, 40)
+Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 2
+Scroll.CanvasSize = UDim2.new(0, 0, 1.5, 0)
+Scroll.BorderSizePixel = 0
+
+local ListLayout = Instance.new("UIListLayout", Scroll)
+ListLayout.Padding = UDim.new(0, 6)
+
+-- 4. UI Component Generators
 local function CreateButton(text, callback)
-    local btn = Instance.new("TextButton")
-    btn.Parent = Scroll
-    btn.Size = UDim2.new(1, -10, 0, 35)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    local btn = Instance.new("TextButton", Scroll)
+    btn.Size = UDim2.new(1, -5, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
     btn.TextColor3 = Color3.fromRGB(220, 220, 220)
     btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 13
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
@@ -93,7 +155,6 @@ end
 local function CreateToggle(text, defaultState, callback)
     local state = defaultState
     local btn = CreateButton(text .. ": " .. (state and "ON" or "OFF"), function() end)
-    
     if state then btn.TextColor3 = Color3.fromRGB(100, 255, 100) end
     
     btn.MouseButton1Click:Connect(function()
@@ -141,14 +202,14 @@ CreateButton("Auto-Buy Carrots", function()
     if Purchase then pcall(function() Purchase:InvokeServer("SeedShop", "Carrot") end) end
 end)
 
-CreateButton("Teleport to Sell Station", function()
+CreateButton("Teleport: Sell Station", function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local target = workspace:FindFirstChild("SellTeleport", true) or workspace:FindFirstChild("Sell", true)
     if target and hrp then hrp.CFrame = target.CFrame * CFrame.new(0, 3, 0) end
 end)
 
-CreateButton("Teleport to My Plot", function()
+CreateButton("Teleport: My Plot", function()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local plots = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Plot")
@@ -174,3 +235,5 @@ RunService.Heartbeat:Connect(function()
         end)
     end
 end)
+
+print("[Ascended] Successfully mounted GUI via gethui()")
