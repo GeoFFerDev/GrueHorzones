@@ -1,6 +1,6 @@
 -- Garden Horizons: Ascended Edition
--- UI Framework: Fluent (Highly Aesthetic, Draggable, Mobile-Friendly)
--- Optimized for Delta Executor
+-- UI Framework: Orion (Native PC & Mobile Support)
+-- Optimized for Delta Android
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -8,7 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 
--- 1. Force Landscape Mode for Mobile Users
+-- Force Landscape for Mobile
 pcall(function()
     StarterGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeRight
 end)
@@ -16,44 +16,57 @@ pcall(function()
     LocalPlayer.PlayerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeRight
 end)
 
--- 2. Load Fluent UI Framework via Raw Link
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+-- Load Orion Library via Raw GitHub Link
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexsoftware/Orion/main/source')))()
 
-local Window = Fluent:CreateWindow({
-    Title = "Garden Horizons: Ascended",
-    SubTitle = "Elite Mod Menu",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(500, 320), -- Scaled nicely for landscape mobile
-    Acrylic = false, -- Disabled for better mobile performance/stability
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl -- PC fallback
+-- Create the Window
+-- Orion automatically handles Mobile minimizing. When you press the '_' (minimize) button, 
+-- it turns into a draggable Orion logo on your screen to reopen it.
+local Window = OrionLib:MakeWindow({
+    Name = "Garden Horizons: Ascended",
+    HidePremium = true,
+    SaveConfig = false,
+    ConfigFolder = "AscendedGH",
+    IntroEnabled = true,
+    IntroText = "Loading Ascended..."
 })
-
--- 3. Setup Tabs
-local Tabs = {
-    Farming = Window:AddTab({ Title = "Farming", Icon = "leaf" }),
-    Teleports = Window:AddTab({ Title = "Teleports", Icon = "map-pin" }),
-    Character = Window:AddTab({ Title = "Character", Icon = "user" })
-}
 
 -- === GAME REMOTES ===
 local Remotes = ReplicatedStorage:WaitForChild("RemoteEvents", 5)
 local UseGear = Remotes and Remotes:FindFirstChild("UseGear")
 local Purchase = Remotes and Remotes:FindFirstChild("PurchaseShopItem")
 
--- === FARMING TAB ===
-
-local AutoHarvestToggle = Tabs.Farming:AddToggle("AutoHarvest", {
-    Title = "Infinite Auto-Harvest",
-    Description = "Automatically harvests all fully grown crops on your plot.",
-    Default = false
+-- === TABS ===
+local FarmTab = Window:MakeTab({
+    Name = "Farming",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
 })
 
-AutoHarvestToggle:OnChanged(function()
-    _G.AutoHarvest = AutoHarvestToggle.Value
-end)
+local TeleTab = Window:MakeTab({
+    Name = "Teleports",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
--- Auto-Harvest Background Loop
+local CharTab = Window:MakeTab({
+    Name = "Character",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- === FARMING LOGIC ===
+_G.AutoHarvest = false
+
+FarmTab:AddToggle({
+    Name = "Infinite Auto-Harvest",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoHarvest = Value
+    end    
+})
+
+-- Background Harvesting Loop
 task.spawn(function()
     while true do
         if _G.AutoHarvest then
@@ -61,7 +74,6 @@ task.spawn(function()
                 local plotsFolder = workspace:FindFirstChild("Plots") or workspace:FindFirstChild("Plot")
                 if plotsFolder and UseGear then
                     for _, plot in ipairs(plotsFolder:GetChildren()) do
-                        -- Safely verify plot ownership
                         local isOwner = plot:GetAttribute("Owner") == LocalPlayer.UserId or (plot:FindFirstChild("Owner") and plot.Owner.Value == LocalPlayer.Name)
                         if isOwner then
                             for _, plant in ipairs(plot:GetChildren()) do
@@ -77,43 +89,40 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.5) -- Fast check loop
+        task.wait(0.5)
     end
 end)
 
-Tabs.Farming:AddButton({
-    Title = "Auto-Buy Carrots",
-    Description = "Instantly buys a carrot seed from the shop.",
+FarmTab:AddButton({
+    Name = "Auto-Buy Carrots",
     Callback = function()
         if Purchase then
             pcall(function() Purchase:InvokeServer("SeedShop", "Carrot") end)
-            Fluent:Notify({ Title = "Purchased", Content = "Bought 1 Carrot Seed.", Duration = 2 })
-        else
-            Fluent:Notify({ Title = "Error", Content = "Purchase remote not found.", Duration = 2 })
+            OrionLib:MakeNotification({
+                Name = "Purchased",
+                Content = "Bought 1 Carrot Seed.",
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
         end
-    end
+    end    
 })
 
--- === TELEPORTS TAB ===
-
-Tabs.Teleports:AddButton({
-    Title = "Teleport to Sell Station",
-    Description = "Instantly travel to the selling area.",
+-- === TELEPORTS LOGIC ===
+TeleTab:AddButton({
+    Name = "Teleport to Sell Station",
     Callback = function()
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local target = workspace:FindFirstChild("SellTeleport", true) or workspace:FindFirstChild("Sell", true)
-        
         if target and hrp then 
             hrp.CFrame = target.CFrame * CFrame.new(0, 3, 0)
-            Fluent:Notify({ Title = "Teleported", Content = "Arrived at Sell Station.", Duration = 2 })
         end
-    end
+    end    
 })
 
-Tabs.Teleports:AddButton({
-    Title = "Teleport to My Plot",
-    Description = "Instantly return to your farm.",
+TeleTab:AddButton({
+    Name = "Teleport to My Plot",
     Callback = function()
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -124,43 +133,33 @@ Tabs.Teleports:AddButton({
             for _, plot in ipairs(plotsFolder:GetChildren()) do
                 if plot:GetAttribute("Owner") == LocalPlayer.UserId or (plot:FindFirstChild("Owner") and plot.Owner.Value == LocalPlayer.Name) then
                     hrp.CFrame = plot:GetPivot() * CFrame.new(0, 5, 0)
-                    Fluent:Notify({ Title = "Teleported", Content = "Arrived at your Plot.", Duration = 2 })
                     break
                 end
             end
         end
-    end
+    end    
 })
 
--- === CHARACTER TAB ===
+-- === CHARACTER LOGIC ===
+_G.SpeedLoop = false
 
-local SpeedToggle = Tabs.Character:AddToggle("SpeedHack", {
-    Title = "Enforced Speed Hack",
-    Description = "Forces WalkSpeed to 75, bypassing game resets.",
-    Default = false
+CharTab:AddToggle({
+    Name = "Enforced Speed Hack (75)",
+    Default = false,
+    Callback = function(Value)
+        _G.SpeedLoop = Value
+    end    
 })
 
-SpeedToggle:OnChanged(function()
-    _G.SpeedLoop = SpeedToggle.Value
-end)
-
--- Heartbeat loop to override game's native speed controllers
 RunService.Heartbeat:Connect(function()
     if _G.SpeedLoop then
         pcall(function()
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChild("Humanoid")
-            if hum then
-                hum.WalkSpeed = 75
-            end
+            if hum then hum.WalkSpeed = 75 end
         end)
     end
 end)
 
--- Finalize UI Loading
-Window:SelectTab(1)
-Fluent:Notify({
-    Title = "Ascended Executed",
-    Content = "Features loaded successfully.",
-    Duration = 5
-})
+-- Initialize UI
+OrionLib:Init()
