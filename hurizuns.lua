@@ -1,123 +1,133 @@
--- Garden Horizons Powerful Mod Script
--- Designed for Delta Executor
--- Features: Auto-Harvest, Shop Teleports, QA Panel Bypass, WalkSpeed/JumpPower
+-- Garden Horizons Mod Script (Rayfield UI Version)
+-- Optimized for Delta Executor
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/7Lib/UI-Libraries/main/Orion/Source.lua"))()
-local Window = Library:MakeWindow({Name = "Garden Horizons Exploiter", HidePremium = false, SaveConfig = true, ConfigFolder = "GardenHorizons"})
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Garden Horizons Hub",
+   LoadingTitle = "Injecting Modules...",
+   LoadingSubtitle = "Delta Executor Version",
+   ConfigurationSaving = {
+      Enabled = false,
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true 
+   },
+   KeySystem = false
+})
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local Remotes = ReplicatedStorage:WaitForChild("RemoteEvents")
-local UseGearRemote = Remotes:WaitForChild("UseGear") -- 
+local Remotes = ReplicatedStorage:WaitForChild("RemoteEvents", 5)
 
--- Main Tab
-local MainTab = Window:MakeTab({
-	Name = "Main",
-	Icon = "rbxassetid://4483345998",
-	PremiumOnly = false
-})
+-- Main Farming Tab
+local FarmingTab = Window:CreateTab("Farming", 4483345998)
 
--- Auto Harvest Logic
--- Based on HarvestBellController [cite: 42873, 42876]
-MainTab:AddToggle({
-	Name = "Auto-Harvest All Plots",
-	Default = false,
-	Callback = function(Value)
-		_G.AutoHarvest = Value
-		while _G.AutoHarvest do
-			for _, plot in ipairs(workspace:WaitForChild("Plots"):GetChildren()) do
-				if plot:GetAttribute("Owner") == LocalPlayer.UserId or plot:FindFirstChild("Owner") and plot.Owner.Value == LocalPlayer.Name then
-					for _, plant in ipairs(plot:GetChildren()) do
-						if plant:IsA("Model") and plant:GetAttribute("FullyGrown") then
-							local uuid = plant:GetAttribute("Uuid")
-							if uuid then
-								-- Fire the Gear Use remote as if using the HarvestBell 
-								UseGearRemote:FireServer("HarvestBell", {["targetUuid"] = uuid})
-							end
-						end
-					end
-				end
-			end
-			task.wait(1)
-		end
-	end    
+FarmingTab:CreateToggle({
+   Name = "Auto-Harvest All Plots",
+   CurrentValue = false,
+   Flag = "AutoHarvestTog", 
+   Callback = function(Value)
+      _G.AutoHarvest = Value
+      
+      -- Spawns a new thread so it doesn't yield the UI
+      task.spawn(function()
+          local UseGearRemote = Remotes and Remotes:FindFirstChild("UseGear")
+          if not UseGearRemote then
+              Rayfield:Notify({Title = "Error", Content = "UseGear remote not found.", Duration = 3})
+              return
+          end
+
+          while _G.AutoHarvest do
+              for _, plot in ipairs(workspace:WaitForChild("Plots"):GetChildren()) do
+                  if plot:GetAttribute("Owner") == LocalPlayer.UserId or (plot:FindFirstChild("Owner") and plot.Owner.Value == LocalPlayer.Name) then
+                      for _, plant in ipairs(plot:GetChildren()) do
+                          if plant:IsA("Model") and plant:GetAttribute("FullyGrown") then
+                              local uuid = plant:GetAttribute("Uuid")
+                              if uuid then
+                                  UseGearRemote:FireServer("HarvestBell", {["targetUuid"] = uuid})
+                              end
+                          end
+                      end
+                  end
+              end
+              task.wait(1)
+          end
+      end)
+   end,
 })
 
 -- Teleport Tab
-local TeleTab = Window:MakeTab({
-	Name = "Teleports",
-	Icon = "rbxassetid://4483345998",
-	PremiumOnly = false
+local TeleportTab = Window:CreateTab("Teleports", 4483345998)
+
+TeleportTab:CreateButton({
+   Name = "Teleport to Seed Shop",
+   Callback = function()
+      local target = workspace:FindFirstChild("SeedsTeleport", true)
+      if target and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 3, 0)
+      else
+         Rayfield:Notify({Title = "Error", Content = "Location not found or character not loaded.", Duration = 3})
+      end
+   end,
 })
 
-TeleTab:AddButton({
-	Name = "Teleport to Seed Shop",
-	Callback = function()
-		local target = workspace:FindFirstChild("SeedsTeleport", true) -- [cite: 45702]
-		if target and LocalPlayer.Character then
-			LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 3, 0)
-		end
-	end    
+TeleportTab:CreateButton({
+   Name = "Teleport to Sell Station",
+   Callback = function()
+      local target = workspace:FindFirstChild("SellTeleport", true)
+      if target and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 3, 0)
+      end
+   end,
 })
 
-TeleTab:AddButton({
-	Name = "Teleport to Sell Station",
-	Callback = function()
-		local target = workspace:FindFirstChild("SellTeleport", true) -- [cite: 45704]
-		if target and LocalPlayer.Character then
-			LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 3, 0)
-		end
-	end    
+-- Developer Tools Tab
+local DevTab = Window:CreateTab("Dev / QA", 4483345998)
+
+DevTab:CreateButton({
+   Name = "Force Open QA Panel",
+   Callback = function()
+      local QAGui = LocalPlayer.PlayerGui:FindFirstChild("QA")
+      if QAGui then
+         QAGui.Enabled = true
+         if QAGui:FindFirstChild("Background") then
+             QAGui.Background.Visible = true
+         end
+         Rayfield:Notify({
+            Title = "Bypass Success",
+            Content = "QA Panel enabled.",
+            Duration = 5,
+            Image = 4483345998,
+         })
+      else
+         Rayfield:Notify({
+            Title = "Failed",
+            Content = "QA Panel GUI not found in PlayerGui.",
+            Duration = 3,
+         })
+      end
+   end,
 })
 
--- Developer/QA Tab
-local DevTab = Window:MakeTab({
-	Name = "Dev Tools",
-	Icon = "rbxassetid://4483345998",
-	PremiumOnly = false
+-- Character Settings Tab
+local CharTab = Window:CreateTab("Character", 4483345998)
+
+CharTab:CreateSlider({
+   Name = "WalkSpeed",
+   Range = {16, 200},
+   Increment = 1,
+   Suffix = "Speed",
+   CurrentValue = 16,
+   Flag = "WalkSpeedSlider", 
+   Callback = function(Value)
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+         LocalPlayer.Character.Humanoid.WalkSpeed = Value
+      end
+   end,
 })
 
--- QA Panel Bypass [cite: 51122, 51108]
-DevTab:AddButton({
-	Name = "Force Open QA Panel",
-	Callback = function()
-		local QAGui = LocalPlayer.PlayerGui:FindFirstChild("QA")
-		if QAGui then
-			QAGui.Enabled = true
-			QAGui.Background.Visible = true
-			Library:MakeNotification({
-				Name = "Bypass Success",
-				Content = "QA Panel enabled. Use carefully!",
-				Image = "rbxassetid://4483345998",
-				Time = 5
-			})
-		else
-			warn("QA Panel not found in PlayerGui")
-		end
-	end    
-})
-
--- Character Settings
-local CharTab = Window:MakeTab({
-	Name = "Character",
-	Icon = "rbxassetid://4483345998",
-	PremiumOnly = false
-})
-
-CharTab:AddSlider({
-	Name = "WalkSpeed",
-	Min = 16,
-	Max = 200,
-	Default = 16,
-	Color = Color3.fromRGB(255,255,255),
-	Increment = 1,
-	ValueName = "Speed",
-	Callback = function(Value)
-		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-			LocalPlayer.Character.Humanoid.WalkSpeed = Value
-		end
-	end    
-})
-
-Library:Init()
+Rayfield:LoadConfiguration()
